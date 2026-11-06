@@ -48,21 +48,24 @@
             <version>2.11.0</version>
         </dependency>
 
-        <!-- Embedded Tomcat 10.1 for standalone runner execution -->
+        <!-- Embedded Tomcat 10.1 for standalone runner execution (provided so it is NEVER packaged into production WAR) -->
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>
             <version>${tomcat.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-jasper</artifactId>
             <version>${tomcat.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-el</artifactId>
             <version>${tomcat.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Optional H2 Database for zero-config demonstration fallback when MySQL is not running -->
@@ -104,6 +107,7 @@
                 <version>3.4.1</version>
                 <configuration>
                     <mainClass>com.bloodconnect.runner.TomcatServer</mainClass>
+                    <classpathScope>test</classpathScope>
                     <systemProperties>
                         <systemProperty>
                             <key>file.encoding</key>

@@ -8,6 +8,134 @@
     <display-name>BloodConnect</display-name>
     <description>BloodConnect – A Web-Based Blood Donor and Emergency Finder System</description>
 
+    <!-- ========================================== -->
+    <!-- FILTERS                                    -->
+    <!-- ========================================== -->
+    <filter>
+        <filter-name>AuthenticationFilter</filter-name>
+        <filter-class>com.bloodconnect.filter.AuthenticationFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>AuthenticationFilter</filter-name>
+        <url-pattern>/donor-dashboard.html</url-pattern>
+        <url-pattern>/my-requests.html</url-pattern>
+        <url-pattern>/request-blood.html</url-pattern>
+        <url-pattern>/admin-dashboard.html</url-pattern>
+        <url-pattern>/api/donor/*</url-pattern>
+        <url-pattern>/api/requests/create</url-pattern>
+        <url-pattern>/api/requests/my</url-pattern>
+        <url-pattern>/api/requests/cancel</url-pattern>
+        <url-pattern>/api/user/*</url-pattern>
+        <url-pattern>/api/admin/*</url-pattern>
+    </filter-mapping>
+
+    <filter>
+        <filter-name>AdminAuthorizationFilter</filter-name>
+        <filter-class>com.bloodconnect.filter.AdminAuthorizationFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>AdminAuthorizationFilter</filter-name>
+        <url-pattern>/admin-dashboard.html</url-pattern>
+        <url-pattern>/api/admin/*</url-pattern>
+    </filter-mapping>
+
+    <!-- ========================================== -->
+    <!-- SERVLETS                                   -->
+    <!-- ========================================== -->
+    <servlet>
+        <servlet-name>StatsServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.StatsServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>StatsServlet</servlet-name>
+        <url-pattern>/api/stats/public</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>LoginServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.LoginServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>LoginServlet</servlet-name>
+        <url-pattern>/api/auth/login</url-pattern>
+        <url-pattern>/api/auth/me</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>LogoutServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.LogoutServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>LogoutServlet</servlet-name>
+        <url-pattern>/api/auth/logout</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>RegisterServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.RegisterServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>RegisterServlet</servlet-name>
+        <url-pattern>/api/auth/register</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>DonorSearchServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.DonorSearchServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DonorSearchServlet</servlet-name>
+        <url-pattern>/api/donors/search</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>DonorServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.DonorServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>DonorServlet</servlet-name>
+        <url-pattern>/api/donor/profile</url-pattern>
+        <url-pattern>/api/donor/status</url-pattern>
+        <url-pattern>/api/donor/history</url-pattern>
+        <url-pattern>/api/donor/respond</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>BloodRequestServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.BloodRequestServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>BloodRequestServlet</servlet-name>
+        <url-pattern>/api/requests/recent</url-pattern>
+        <url-pattern>/api/requests/create</url-pattern>
+        <url-pattern>/api/requests/my</url-pattern>
+        <url-pattern>/api/requests/cancel</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>UserServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.UserServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>UserServlet</servlet-name>
+        <url-pattern>/api/user/profile</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>AdminServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.AdminServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>AdminServlet</servlet-name>
+        <url-pattern>/api/admin/overview</url-pattern>
+        <url-pattern>/api/admin/users</url-pattern>
+        <url-pattern>/api/admin/donors</url-pattern>
+        <url-pattern>/api/admin/requests</url-pattern>
+        <url-pattern>/api/admin/verify-donor</url-pattern>
+        <url-pattern>/api/admin/update-request</url-pattern>
+    </servlet-mapping>
+
     <welcome-file-list>
         <welcome-file>index.html</welcome-file>
     </welcome-file-list>
