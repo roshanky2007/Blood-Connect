@@ -20,12 +20,14 @@ import java.util.logging.Logger;
  */
 public class DatabaseConnection {
     private static final Logger LOGGER = Logger.getLogger(DatabaseConnection.class.getName());
+    public static final String DEFAULT_DRIVER = "com.mysql.cj.jdbc.Driver";
+
     private static DatabaseConnection instance;
 
-    private String driver;
+    private String driver = DEFAULT_DRIVER;
     private String url;
-    private String user;
-    private String password;
+    private String user = "root";
+    private String password = "";
     private boolean fallbackH2 = true;
     private boolean isH2Active = false;
     private boolean mysqlSchemaChecked = false;
@@ -52,29 +54,52 @@ public class DatabaseConnection {
             LOGGER.log(Level.WARNING, "application.properties could not be loaded, using defaults.", e);
         }
 
-        // 1. JDBC Driver
-        this.driver = getFirstEnv("DB_DRIVER", "MYSQL_DRIVER", props.getProperty("db.driver", "com.mysql.cj.jdbc.Driver"));
+        // Optional local development override (application-local.properties is gitignored and dockerignored)
+        try (InputStream localIn = getClass().getClassLoader().getResourceAsStream("application-local.properties")) {
+            if (localIn != null) {
+                props.load(localIn);
+            }
+        } catch (Exception ignored) {
+            // Optional local file
+        }
 
-        // 2. Credentials (Environment variables take precedence over properties files)
-        String envUser = getFirstEnv("DB_USER", "MYSQL_USER", "MYSQLUSER");
-        this.user = (envUser != null && !envUser.isEmpty()) ? envUser : props.getProperty("db.user", "root");
+        // 1. Resolve JDBC Driver class (Never null)
+        String envDriver = getEnv("DB_DRIVER", "MYSQL_DRIVER");
+        if (envDriver != null && !envDriver.isEmpty()) {
+            this.driver = envDriver;
+        } else {
+            String propDriver = props.getProperty("db.driver");
+            this.driver = (propDriver != null && !propDriver.trim().isEmpty()) ? propDriver.trim() : DEFAULT_DRIVER;
+        }
 
-        String envPass = getFirstEnv("DB_PASSWORD", "MYSQL_PASSWORD", "MYSQLPASSWORD");
-        this.password = (envPass != null) ? envPass : props.getProperty("db.password", "");
+        // 2. Resolve Credentials (Environment variables take precedence over properties files)
+        String envUser = getEnv("DB_USER", "MYSQL_USER", "MYSQLUSER");
+        if (envUser != null && !envUser.isEmpty()) {
+            this.user = envUser;
+        } else {
+            this.user = props.getProperty("db.user", "root");
+        }
+
+        String envPass = getEnv("DB_PASSWORD", "MYSQL_PASSWORD", "MYSQLPASSWORD");
+        if (envPass != null) {
+            this.password = envPass;
+        } else {
+            this.password = props.getProperty("db.password", "");
+        }
 
         // 3. Fallback H2 Mode (Disable in production on Render with DB_FALLBACK_H2=false)
-        String envFallback = getFirstEnv("DB_FALLBACK_H2", "ENABLE_H2_FALLBACK");
+        String envFallback = getEnv("DB_FALLBACK_H2", "ENABLE_H2_FALLBACK");
         if (envFallback != null && !envFallback.isEmpty()) {
             this.fallbackH2 = Boolean.parseBoolean(envFallback);
         } else {
             this.fallbackH2 = Boolean.parseBoolean(props.getProperty("db.fallback.h2", "true"));
         }
 
-        // 4. Resolve Database URL
+        // 4. Resolve Database URL dynamically
         this.url = resolveDatabaseUrl(props);
 
-        LOGGER.info("Database configuration armed: Target=" + maskUrl(this.url) + ", User=" + this.user
-                + ", Driver=" + this.driver + ", H2FallbackEnabled=" + this.fallbackH2);
+        LOGGER.info(String.format("Database configuration armed: Target=%s, User=%s, Driver=%s, H2FallbackEnabled=%b",
+                maskUrl(this.url), this.user, this.driver, this.fallbackH2));
     }
 
     /**
@@ -86,44 +111,50 @@ public class DatabaseConnection {
      * 5. Localhost fallback
      */
     private String resolveDatabaseUrl(Properties props) {
-        // Priority 1: Direct JDBC URL via DB_URL
-        String envDbUrl = getFirstEnv("DB_URL", "MYSQL_JDBC_URL");
+        // Priority 1: Direct JDBC URL via DB_URL or MYSQL_JDBC_URL
+        String envDbUrl = getEnv("DB_URL", "MYSQL_JDBC_URL");
         if (envDbUrl != null && !envDbUrl.isEmpty()) {
+            LOGGER.info("Using database connection from DB_URL environment variable.");
             return ensureJdbcPrefix(envDbUrl);
         }
 
         // Priority 2: Cloud URI via DATABASE_URL or MYSQL_URL
-        String envRawUrl = getFirstEnv("DATABASE_URL", "MYSQL_URL");
+        String envRawUrl = getEnv("DATABASE_URL", "MYSQL_URL");
         if (envRawUrl != null && !envRawUrl.isEmpty()) {
             try {
-                return parseCloudDatabaseUrl(envRawUrl);
+                String parsed = parseCloudDatabaseUrl(envRawUrl);
+                LOGGER.info("Using database connection from DATABASE_URL environment variable.");
+                return parsed;
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Failed to parse DATABASE_URL (" + maskUrl(envRawUrl) + "): " + e.getMessage());
             }
         }
 
         // Priority 3: Individual host/port/name parameters (common in Render private services)
-        String envHost = getFirstEnv("DB_HOST", "MYSQL_HOST", "MYSQLHOST");
+        String envHost = getEnv("DB_HOST", "MYSQL_HOST", "MYSQLHOST");
         if (envHost != null && !envHost.isEmpty()) {
-            String port = getFirstEnv("DB_PORT", "MYSQL_PORT", "MYSQLPORT", "3306");
-            String dbName = getFirstEnv("DB_NAME", "MYSQL_DATABASE", "MYSQLDATABASE", "bloodconnect_db");
+            String port = getEnvOrDefault("3306", "DB_PORT", "MYSQL_PORT", "MYSQLPORT");
+            String dbName = getEnvOrDefault("bloodconnect_db", "DB_NAME", "MYSQL_DATABASE", "MYSQLDATABASE");
             String sslParam = "false";
-            String envSsl = getFirstEnv("DB_SSL", "MYSQL_SSL");
+            String envSsl = getEnv("DB_SSL", "MYSQL_SSL");
             if ("true".equalsIgnoreCase(envSsl) || "require".equalsIgnoreCase(envSsl)) {
                 sslParam = "true";
             }
+            LOGGER.info(String.format("Constructed dynamic MySQL JDBC URL for host [%s:%s] database [%s]", envHost, port, dbName));
             return "jdbc:mysql://" + envHost + ":" + port + "/" + dbName
-                    + "?useSSL=" + sslParam + "&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8";
+                    + "?useSSL=" + sslParam + "&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8&autoReconnect=true";
         }
 
         // Priority 4: application.properties
         String propUrl = props.getProperty("db.url");
         if (propUrl != null && !propUrl.trim().isEmpty()) {
+            LOGGER.info("Using database URL from application.properties file.");
             return propUrl.trim();
         }
 
         // Priority 5: Default local fallback
-        return "jdbc:mysql://localhost:3306/bloodconnect_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8";
+        LOGGER.info("No external DB environment variables detected. Falling back to default localhost:3306.");
+        return "jdbc:mysql://localhost:3306/bloodconnect_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8&autoReconnect=true";
     }
 
     private String parseCloudDatabaseUrl(String rawUrl) throws Exception {
@@ -157,20 +188,17 @@ public class DatabaseConnection {
 
         boolean useSsl = rawUrl.startsWith("mysqls://") || rawUrl.contains("ssl=true");
         return "jdbc:mysql://" + host + ":" + port + "/" + dbName
-                + "?useSSL=" + useSsl + "&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8";
+                + "?useSSL=" + useSsl + "&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8&autoReconnect=true";
     }
 
-    private String ensureJdbcPrefix(String url) {
-        if (url.startsWith("jdbc:mysql:")) {
-            return url;
+    private String ensureJdbcPrefix(String rawUrl) {
+        if (!rawUrl.startsWith("jdbc:")) {
+            return "jdbc:" + rawUrl;
         }
-        if (url.startsWith("mysql://")) {
-            return "jdbc:" + url;
-        }
-        return url;
+        return rawUrl;
     }
 
-    private String getFirstEnv(String... keys) {
+    private String getEnv(String... keys) {
         for (String k : keys) {
             String val = System.getenv(k);
             if (val != null && !val.trim().isEmpty()) {
@@ -180,23 +208,24 @@ public class DatabaseConnection {
         return null;
     }
 
-    private String getFirstEnv(String k1, String k2, String k3, String defaultValue) {
-        String val = getFirstEnv(k1, k2, k3);
+    private String getEnvOrDefault(String defaultValue, String... keys) {
+        String val = getEnv(keys);
         return (val != null) ? val : defaultValue;
     }
 
     private String maskUrl(String rawUrl) {
         if (rawUrl == null) return "null";
         return rawUrl.replaceAll("(?i)(password=)[^&;]*", "$1*****")
+                .replaceAll("(?i)(pwd=)[^&;]*", "$1*****")
                 .replaceAll("(://[^:]+:)[^@]+(@)", "$1*****$2");
     }
 
     private void initializeDriver() {
         try {
-            Class.forName(driver);
-            LOGGER.info("Primary JDBC Driver registered: " + driver);
+            Class.forName(this.driver);
+            LOGGER.info("Primary MySQL JDBC Driver registered successfully: " + this.driver);
         } catch (ClassNotFoundException e) {
-            LOGGER.log(Level.SEVERE, "Could not load primary JDBC Driver: " + driver, e);
+            LOGGER.log(Level.SEVERE, "FATAL: Could not load primary JDBC Driver class: " + this.driver, e);
         }
     }
 
@@ -218,12 +247,16 @@ public class DatabaseConnection {
 
             return conn;
         } catch (SQLException primaryEx) {
+            String errorMsg = String.format("Failed to connect to MySQL database at [%s] as user [%s]. Error [%d / %s]: %s",
+                    maskUrl(url), user, primaryEx.getErrorCode(), primaryEx.getSQLState(), primaryEx.getMessage());
+
             if (fallbackH2) {
-                LOGGER.warning("Could not connect to primary database at " + maskUrl(url) + " (" + primaryEx.getMessage()
-                        + "). Activating seamless H2 fallback for demo compatibility...");
+                LOGGER.warning(errorMsg + ". Activating H2 fallback mode for emergency continuity.");
                 return getH2FallbackConnection();
             }
-            throw new DatabaseException("Failed to connect to database: " + primaryEx.getMessage(), primaryEx);
+
+            LOGGER.severe(errorMsg);
+            throw new DatabaseException(errorMsg, primaryEx);
         }
     }
 
@@ -305,6 +338,18 @@ public class DatabaseConnection {
                             + "VALUES ('System Administrator', 'admin@bloodconnect.org', '9876543210', "
                             + "'$2a$10$CdaRoius1I3wi862fgi/XOqkHXx28Gm2.4EbE1Le5UXTMtluPg8/q', 'ADMIN', 'Mumbai', 'Maharashtra', '400001', 'HQ Nariman Point', 'ACTIVE')");
                     LOGGER.info("Default administrator account initialized in MySQL.");
+                }
+            }
+
+            // Seed demo donor if not present
+            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM users WHERE email='rohit.sharma@example.com'")) {
+                if (rs.next() && rs.getInt(1) == 0) {
+                    stmt.execute("INSERT INTO users (user_id, full_name, email, phone, password_hash, role, city, state, pincode, address, account_status) "
+                            + "VALUES (2, 'Rohit Sharma', 'rohit.sharma@example.com', '9820011223', "
+                            + "'$2a$10$hIb1pOM1heRUNZvcGyujB.YcQjBJ9aQ66CL4ISWJcQt1DUk7CZ/pi', 'DONOR', 'Mumbai', 'Maharashtra', '400050', 'Bandra West', 'ACTIVE')");
+                    stmt.execute("INSERT INTO donors (donor_id, user_id, blood_group, availability_status, is_discoverable) "
+                            + "VALUES (1, 2, 'O+', 'AVAILABLE', TRUE)");
+                    LOGGER.info("Demo donor account initialized in MySQL.");
                 }
             }
         } catch (SQLException e) {
