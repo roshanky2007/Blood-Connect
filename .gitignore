@@ -1,0 +1,31 @@
+# Maven build output
+target/
+*.war
+*.jar
+
+# Embedded Tomcat temp working directories
+tomcat.*/
+
+# IDE specific files
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Environment variables & secrets
+.env
+.env.*
+*.local.properties
+application-local.properties
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local database files
+*.db
+*.mv.db
+*.trace.db
