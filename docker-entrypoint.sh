@@ -12,9 +12,11 @@ echo "=========================================================="
 
 # Dynamically configure Tomcat HTTP Connector port in server.xml
 if [ -f /usr/local/tomcat/conf/server.xml ]; then
+    # Disable legacy shutdown port to prevent health-check collisions
+    sed -i 's/<Server port="8005"/<Server port="-1"/g' /usr/local/tomcat/conf/server.xml
+    # Bind HTTP connector to Render $PORT
     sed -i "s/port=\"8080\"/port=\"${APP_PORT}\"/g" /usr/local/tomcat/conf/server.xml
 fi
 
 # Launch Tomcat in foreground
 exec catalina.sh run
-
