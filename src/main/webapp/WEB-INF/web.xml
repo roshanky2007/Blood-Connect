@@ -43,6 +43,16 @@
     <!-- SERVLETS                                   -->
     <!-- ========================================== -->
     <servlet>
+        <servlet-name>PingServlet</servlet-name>
+        <servlet-class>com.bloodconnect.servlet.PingServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>PingServlet</servlet-name>
+        <url-pattern>/api/ping</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
         <servlet-name>StatsServlet</servlet-name>
         <servlet-class>com.bloodconnect.servlet.StatsServlet</servlet-class>
         <load-on-startup>1</load-on-startup>
